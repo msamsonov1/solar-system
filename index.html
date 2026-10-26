@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spacetime Curvature Solar System</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js and OrbitControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #0c0e14;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            user-select: none;
+        }
+        #webgl-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            outline: none;
+        }
+        /* Custom scrollbar for data pane */
+        ::-webkit-scrollbar {
+            width: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(100, 116, 139, 0.5);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(148, 163, 184, 0.8);
+        }
+        /* Custom range styling */
+        input[type=range] {
+            accent-color: #38bdf8;
+        }
+    </style>
+</head>
+<body class="text-slate-100 flex flex-col md:flex-row h-screen w-screen overflow-hidden">
+
+    <!-- Center / Main 3D Canvas Area -->
+    <div class="relative flex-1 h-full min-h-0 bg-[#0e1017] overflow-hidden">
+        <canvas id="webgl-canvas"></canvas>
+
+        <!-- Top Overlay: Title & Gravitational Sheet Indicator -->
+        <div class="absolute top-4 left-4 z-10 pointer-events-none">
+            <div class="bg-slate-900/80 backdrop-blur-md px-4 py-3 rounded-xl border border-slate-700/60 shadow-2xl flex items-center gap-3">
+                <div class="p-2.5 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                    <i class="fa-solid fa-atom text-xl animate-spin" style="animation-duration: 16s;"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-base md:text-lg tracking-wide text-white flex items-center gap-2">
+                        Relativistic Spacetime Mesh
+                        <span class="text-xs px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">Gravity Wells</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">Elastic 3D fabric deformed by stellar & planetary mass</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Camera Preset View Controls -->
+        <div class="absolute top-4 right-4 z-10 flex gap-2">
+            <button id="btnViewAngled" title="Angled View" class="bg-slate-900/80 hover:bg-slate-800 text-xs text-slate-300 hover:text-white px-3 py-2 rounded-lg border border-slate-700/60 backdrop-blur-md transition shadow flex items-center gap-1.5 pointer-events-auto">
+                <i class="fa-solid fa-cube text-cyan-400"></i> Perspective
+            </button>
+            <button id="btnViewTop" title="Top-down Orbital View" class="bg-slate-900/80 hover:bg-slate-800 text-xs text-slate-300 hover:text-white px-3 py-2 rounded-lg border border-slate-700/60 backdrop-blur-md transition shadow flex items-center gap-1.5 pointer-events-auto">
+                <i class="fa-solid fa-circle-dot text-amber-400"></i> Top-Down
+            </button>
+            <button id="btnResetCam" title="Reset View" class="bg-slate-900/80 hover:bg-slate-800 text-xs text-slate-300 hover:text-white px-3 py-2 rounded-lg border border-slate-700/60 backdrop-blur-md transition shadow flex items-center gap-1 pointer-events-auto">
+                <i class="fa-solid fa-arrows-rotate"></i>
+            </button>
+        </div>
+
+        <!-- Floating Hint -->
+        <div class="hidden sm:flex absolute bottom-24 left-4 z-10 text-[11px] text-slate-400 bg-slate-900/60 px-3 py-1.5 rounded-lg border border-slate-800/80 backdrop-blur-sm pointer-events-none items-center gap-2">
+            <i class="fa-solid fa-computer-mouse text-slate-400"></i>
+            <span>Drag to rotate • Right-click to pan • Scroll to zoom</span>
+        </div>
+
+        <!-- Bottom Timeline & Time Scrubber Floating Controller -->
+        <div class="absolute bottom-4 left-4 right-4 md:right-8 z-20 flex justify-center pointer-events-none">
+            <div class="bg-slate-900/90 backdrop-blur-md border border-slate-700/70 shadow-2xl rounded-2xl p-4 w-full max-w-3xl pointer-events-auto flex flex-col gap-2.5">
+                
+                <!-- Timeline status bar -->
+                <div class="flex items-center justify-between text-xs">
+                    <div class="flex items-center gap-3">
+                        <span class="flex items-center gap-1.5 font-semibold text-slate-200">
+                            <i class="fa-regular fa-clock text-cyan-400"></i> Simulation Time:
+                        </span>
+                        <span id="displayEarthDays" class="font-mono text-cyan-300 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800/50">
+                            Day 0.0
+                        </span>
+                        <span id="displayEarthYears" class="hidden sm:inline font-mono text-slate-400 text-[11px]">
+                            (0.00 Earth Years)
+                        </span>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <!-- Playback Speed Indicator -->
+                        <span class="text-[11px] text-slate-400">Warp:</span>
+                        <button id="btnSpeed05" class="speed-btn px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300">0.5x</button>
+                        <button id="btnSpeed1" class="speed-btn px-2 py-0.5 rounded text-[11px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">1x</button>
+                        <button id="btnSpeed5" class="speed-btn px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300">5x</button>
+                        <button id="btnSpeed20" class="speed-btn px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300">20x</button>
+                    </div>
+                </div>
+
+                <!-- Slider and Transport Buttons -->
+                <div class="flex items-center gap-3">
+                    <button id="btnStepBack" title="Step Back 30 Days" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition">
+                        <i class="fa-solid fa-backward-step"></i>
+                    </button>
+                    <button id="btnPlayPause" class="w-10 h-10 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold flex items-center justify-center transition shadow-lg shadow-cyan-500/30">
+                        <i id="playIcon" class="fa-solid fa-pause"></i>
+                    </button>
+                    <button id="btnStepForward" title="Step Forward 30 Days" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition">
+                        <i class="fa-solid fa-forward-step"></i>
+                    </button>
+
+                    <!-- Time Scrubbing Slider -->
+                    <div class="flex-1 flex flex-col justify-center">
+                        <input id="timeSlider" type="range" min="0" max="60000" step="1" value="0" 
+                            class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer border border-slate-700">
+                        <div class="flex justify-between text-[10px] text-slate-500 font-mono mt-1">
+                            <span>Origin (Day 0)</span>
+                            <span class="text-cyan-400 font-medium">Drag to travel across decades</span>
+                            <span>Day +60,000 (~164 yr)</span>
+                        </div>
+                    </div>
+
+                    <!-- Gravity Well Depth Toggle -->
+                    <button id="btnToggleMesh" title="Toggle Gravity Well Wireframe" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition flex items-center gap-1.5 text-xs">
+                        <i class="fa-solid fa-border-none text-cyan-400"></i>
+                        <span class="hidden sm:inline">Grid</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Pane: Planetary Orbital Periods & Days Per Year -->
+    <div class="w-full md:w-96 bg-slate-950/95 border-t md:border-t-0 md:border-l border-slate-800/80 p-5 flex flex-col h-72 md:h-full z-20 backdrop-blur-xl shadow-2xl">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800/80 mb-3">
+            <div>
+                <h2 class="font-bold text-slate-100 text-base flex items-center gap-2">
+                    <i class="fa-solid fa-circle-nodes text-cyan-400"></i> Planetary Dynamics
+                </h2>
+                <p class="text-xs text-slate-400">Earth days per year & live orbits</p>
+            </div>
+            <div class="text-right">
+                <span class="text-[10px] font-mono uppercase bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700">8 Planets</span>
+            </div>
+        </div>
+
+        <!-- Explanation card matching user image -->
+        <div class="bg-gradient-to-br from-slate-900 to-slate-850 p-3 rounded-xl border border-slate-800 text-xs text-slate-300 mb-3 flex items-start gap-2.5">
+            <i class="fa-solid fa-circle-info text-cyan-400 mt-0.5"></i>
+            <div>
+                <strong class="text-white block font-medium">General Relativity Depiction:</strong>
+                Planets carve deep potential funnels into the spacetime sheet proportional to their mass. Moons orbit inside their parent planet's local depression!
+            </div>
+        </div>
+
+        <!-- Planets Scrollable List -->
+        <div id="planetsList" class="flex-1 overflow-y-auto pr-1 space-y-2.5">
+            <!-- Planet item rows injected dynamically -->
+        </div>
+
+        <!-- Legend / Info footer -->
+        <div class="pt-3 border-t border-slate-800/80 text-[11px] text-slate-400 flex justify-between items-center">
+            <span>Standard Earth Year = <strong class="text-slate-200">365.25 d</strong></span>
+            <span class="font-mono text-cyan-400 flex items-center gap-1">
+                <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping inline-block"></span> Live Synchronized
+            </span>
+        </div>
+    </div>
+
+    <!-- Application Logic -->
+    <script>
+        // Planetary parameters: Orbital period (in Earth days), distance from sun, size, color, mass (funnel depth)
+        const PLANET_DATA = [
+            {
+                id: 'mercury',
+                name: 'Mercury',
+                color: '#9ca3af',
+                specular: '#d1d5db',
+                radius: 1.1,
+                dist: 17,
+                daysPerYear: 87.97,
+                mass: 0.25,
+                funnelWidth: 3.2,
+                funnelDepth: 2.2,
+                eccentricity: 0.03,
+                moons: 0,
+                desc: 'Extreme swiftness, closest deep solar funnel'
+            },
+            {
+                id: 'venus',
+                name: 'Venus',
+                color: '#eab308',
+                specular: '#fde047',
+                radius: 1.6,
+                dist: 26,
+                daysPerYear: 224.70,
+                mass: 0.82,
+                funnelWidth: 4.0,
+                funnelDepth: 3.5,
+                eccentricity: 0.01,
+                moons: 0,
+                desc: 'Dense atmosphere, retrograde spin'
+            },
+            {
+                id: 'earth',
+                name: 'Earth',
+                color: '#38bdf8',
+                specular: '#60a5fa',
+                radius: 1.8,
+                dist: 37,
+                daysPerYear: 365.25,
+                mass: 1.0,
+                funnelWidth: 4.4,
+                funnelDepth: 4.0,
+                eccentricity: 0.017,
+                moons: 1,
+                moonDist: 3.4,
+                moonRadius: 0.45,
+                moonColor: '#cbd5e1',
+                moonSpeed: 27.3,
+                desc: 'Home world with Luna orbiting in local well'
+            },
+            {
+                id: 'mars',
+                name: 'Mars',
+                color: '#f97316',
+                specular: '#fb923c',
+                radius: 1.3,
+                dist: 48,
+                daysPerYear: 686.98,
+                mass: 0.45,
+                funnelWidth: 3.6,
+                funnelDepth: 2.8,
+                eccentricity: 0.04,
+                moons: 2,
+                desc: 'The Red Planet with Phobos & Deimos wells'
+            },
+            {
+                id: 'jupiter',
+                name: 'Jupiter',
+                color: '#d97706',
+                specular: '#f59e0b',
+                striped: true,
+                radius: 4.8,
+                dist: 70,
+                daysPerYear: 4332.59, // ~11.86 Earth years
+                mass: 3.2,
+                funnelWidth: 10.5,
+                funnelDepth: 8.5,
+                eccentricity: 0.02,
+                moons: 4, // 4 Galilean
+                desc: 'Massive gravity basin carrying Galilean system'
+            },
+            {
+                id: 'saturn',
+                name: 'Saturn',
+                color: '#fef08a',
+                specular: '#fef9c3',
+                hasRings: true,
+                radius: 3.8,
+                dist: 94,
+                daysPerYear: 10759.22, // ~29.45 Earth years
+                mass: 2.4,
+                funnelWidth: 9.0,
+                funnelDepth: 7.2,
+                eccentricity: 0.03,
+                moons: 3,
+                desc: 'Magnificent rings sitting within deep funnel'
+            },
+            {
+                id: 'uranus',
+                name: 'Uranus',
+                color: '#2dd4bf',
+                specular: '#5eead4',
+                hasRings: true,
+                radius: 2.7,
+                dist: 118,
+                daysPerYear: 30685.40, // ~84.0 Earth years
+                mass: 1.6,
+                funnelWidth: 6.2,
+                funnelDepth: 5.2,
+                eccentricity: 0.02,
+                moons: 2,
+                desc: 'Tilted ice giant creating symmetric indentation'
+            },
+            {
+                id: 'neptune',
+                name: 'Neptune',
+                color: '#3b82f6',
+                specular: '#60a5fa',
+                radius: 2.6,
+                dist: 140,
+                daysPerYear: 60189.00, // ~164.8 Earth years
+                mass: 1.7,
+                funnelWidth: 6.4,
+                funnelDepth: 5.4,
+                eccentricity: 0.01,
+                moons: 1,
+                desc: 'Deep blue outer sentinel in far sheet depression'
+            }
+        ];
+
+        // Global simulation state
+        let currentDay = 0;
+        let isPlaying = true;
+        let warpMultiplier = 1.0;
+        let baseDayRate = 0.75; // days advanced per frame at 1x
+        let meshWireframe = false;
+
+        // UI references
+        const timeSlider = document.getElementById('timeSlider');
+        const displayEarthDays = document.getElementById('displayEarthDays');
+        const displayEarthYears = document.getElementById('displayEarthYears');
+        const btnPlayPause = document.getElementById('btnPlayPause');
+        const playIcon = document.getElementById('playIcon');
+        const btnStepBack = document.getElementById('btnStepBack');
+        const btnStepForward = document.getElementById('btnStepForward');
+        const planetsListContainer = document.getElementById('planetsList');
+
+        // Populate Right Pane with Planet Info Cards
+        function populatePlanetSidebar() {
+            planetsListContainer.innerHTML = '';
+            PLANET_DATA.forEach(p => {
+                const earthYears = (p.daysPerYear / 365.25).toFixed(2);
+                const card = document.createElement('div');
+                card.id = `card-${p.id}`;
+                card.className = "bg-slate-900/80 hover:bg-slate-800/90 border border-slate-800/80 hover:border-slate-700 p-3 rounded-xl transition duration-200 cursor-pointer";
+                
+                card.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2.5">
+                            <span class="w-3.5 h-3.5 rounded-full shadow" style="background-color: ${p.color}; box-shadow: 0 0 10px ${p.color}88;"></span>
+                            <span class="font-bold text-sm text-slate-100">${p.name}</span>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-xs font-mono font-bold text-cyan-300">${p.daysPerYear.toLocaleString()}</span>
+                            <span class="text-[10px] text-slate-400 block">Earth Days / Yr</span>
+                        </div>
+                    </div>
+                    <div class="mt-2 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-800/60 pt-1.5">
+                        <span>Period: <strong class="text-slate-300 font-mono">${earthYears} yrs</strong></span>
+                        <span id="orbitCount-${p.id}" class="font-mono text-cyan-400 bg-slate-950/70 px-1.5 py-0.5 rounded border border-slate-800">
+                            0.00 orbits
+                        </span>
+                    </div>
+                `;
+
+                // Clicking card focuses camera near planet
+                card.addEventListener('click', () => {
+                    focusCameraOnPlanet(p.id);
+                });
+
+                planetsListContainer.appendChild(card);
+            });
+        }
+
+        populatePlanetSidebar();
+
+        // Three.js Scene Setup
+        const canvas = document.getElementById('webgl-canvas');
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0c12);
+        scene.fog = new THREE.FogExp2(0x0a0c12, 0.0028);
+
+        // Perspective Camera
+        const camera = new THREE.PerspectiveCamera(45, 1, 0.5, 1200);
+        camera.position.set(0, 110, 140);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxDistance = 450;
+        controls.minDistance = 15;
+        controls.maxPolarAngle = Math.PI / 2 + 0.05; // allow looking slightly underneath sheet
+        controls.target.set(0, -6, 0);
+
+        // Lighting matching realistic rubber-sheet studio style
+        const ambientLight = new THREE.AmbientLight(0x232738, 1.4);
+        scene.add(ambientLight);
+
+        // Sun's point light
+        const sunLight = new THREE.PointLight(0xffea9f, 2.5, 300, 0.7);
+        sunLight.position.set(0, 2, 0);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
+        scene.add(sunLight);
+
+        // Overhead directional light for smooth soft surface curvature shading like in photo
+        const studioDirLight = new THREE.DirectionalLight(0xa5b4fc, 0.9);
+        studioDirLight.position.set(-60, 140, 50);
+        studioDirLight.castShadow = true;
+        scene.add(studioDirLight);
+
+        const fillLight = new THREE.DirectionalLight(0x475569, 0.6);
+        fillLight.position.set(60, 80, -60);
+        scene.add(fillLight);
+
+        // Background subtle starfield
+        function createStarfield() {
+            const starGeo = new THREE.BufferGeometry();
+            const count = 1200;
+            const positions = new Float32Array(count * 3);
+            for(let i = 0; i < count * 3; i += 3) {
+                positions[i] = (Math.random() - 0.5) * 800;
+                positions[i+1] = Math.random() * 300 + 40;
+                positions[i+2] = (Math.random() - 0.5) * 800;
+            }
+            starGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            const starMat = new THREE.PointsMaterial({
+                color: 0x94a3b8,
+                size: 1.2,
+                transparent: true,
+                opacity: 0.35
+            });
+            const stars = new THREE.Points(starGeo, starMat);
+            scene.add(stars);
+        }
+        createStarfield();
+
+        // -------------------------------------------------------------
+        // DEFORMABLE SPACETIME SHEET (Rubber Membrane)
+        // -------------------------------------------------------------
+        const GRID_SIZE = 340;
+        const GRID_SEGMENTS = 160; // 160x160 vertices for high-detail smooth wells
+        const sheetGeo = new THREE.PlaneGeometry(GRID_SIZE, GRID_SIZE, GRID_SEGMENTS, GRID_SEGMENTS);
+        sheetGeo.rotateX(-Math.PI / 2); // Lay flat on XZ plane
+
+        // Store pristine Y coordinates for deformation
+        const posAttr = sheetGeo.attributes.position;
+        const vertexCount = posAttr.count;
+        const baseCoords = new Float32Array(vertexCount * 3);
+        for(let i = 0; i < vertexCount; i++) {
+            baseCoords[i * 3]     = posAttr.getX(i);
+            baseCoords[i * 3 + 1] = posAttr.getY(i);
+            baseCoords[i * 3 + 2] = posAttr.getZ(i);
+        }
+
+        // Material replicating the smooth matte gray fabric in user's image
+        const sheetMaterial = new THREE.MeshStandardMaterial({
+            color: 0x333b48,
+            roughness: 0.48,
+            metalness: 0.22,
+            flatShading: false,
+            side: THREE.DoubleSide,
+            wireframe: false
+        });
+
+        const spacetimeMesh = new THREE.Mesh(sheetGeo, sheetMaterial);
+        spacetimeMesh.receiveShadow = true;
+        scene.add(spacetimeMesh);
+
+        // Secondary subtle wireframe overlay for scientific visualization
+        const wireframeMat = new THREE.MeshBasicMaterial({
+            color: 0x38bdf8,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.08
+        });
+        const wireframeMesh = new THREE.Mesh(sheetGeo, wireframeMat);
+        wireframeMesh.position.y = 0.02;
+        wireframeMesh.visible = false;
+        scene.add(wireframeMesh);
+
+        // -------------------------------------------------------------
+        // SOLAR SYSTEM OBJECTS (Sun, Planets, Orbits, Moons)
+        // -------------------------------------------------------------
+        // Procedural canvas textures helper for planets & sun
+        function createSunCanvasTexture() {
+            const cv = document.createElement('canvas');
+            cv.width = 512; cv.height = 256;
+            const ctx = cv.getContext('2d');
+            
+            // Solar fiery gradient
+            const grad = ctx.createLinearGradient(0, 0, 0, 256);
+            grad.addColorStop(0, '#fffae0');
+            grad.addColorStop(0.5, '#f59e0b');
+            grad.addColorStop(1, '#d97706');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 512, 256);
+
+            // Solar granules / noise spots
+            for(let i = 0; i < 700; i++) {
+                ctx.fillStyle = Math.random() > 0.5 ? 'rgba(255,255,255,0.18)' : 'rgba(180,83,9,0.22)';
+                ctx.beginPath();
+                const rx = Math.random() * 512;
+                const ry = Math.random() * 256;
+                const r = Math.random() * 6 + 1;
+                ctx.arc(rx, ry, r, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            return new THREE.CanvasTexture(cv);
+        }
+
+        function createStripedTexture(baseHex, stripeHex) {
+            const cv = document.createElement('canvas');
+            cv.width = 256; cv.height = 256;
+            const ctx = cv.getContext('2d');
+            ctx.fillStyle = baseHex;
+            ctx.fillRect(0, 0, 256, 256);
+            
+            // Gas bands
+            ctx.fillStyle = stripeHex;
+            for(let y = 10; y < 256; y += 24) {
+                const h = Math.random() * 12 + 6;
+                ctx.fillRect(0, y, 256, h);
+            }
+            return new THREE.CanvasTexture(cv);
+        }
+
+        // Sun
+        const sunTexture = createSunCanvasTexture();
+        const sunGeo = new THREE.SphereGeometry(7.0, 48, 48);
+        const sunMat = new THREE.MeshStandardMaterial({
+            map: sunTexture,
+            emissive: 0xffaa00,
+            emissiveIntensity: 0.95,
+            roughness: 0.3,
+            metalness: 0.1
+        });
+        const sunMesh = new THREE.Mesh(sunGeo, sunMat);
+        sunMesh.position.set(0, -6.8, 0); // Positioned comfortably resting in its deep well
+        scene.add(sunMesh);
+
+        // Sun Glow Halo
+        const glowGeo = new THREE.SphereGeometry(7.6, 32, 32);
+        const glowMat = new THREE.MeshBasicMaterial({
+            color: 0xffb703,
+            transparent: true,
+            opacity: 0.22,
+            side: THREE.BackSide
+        });
+        const sunGlow = new THREE.Mesh(glowGeo, glowMat);
+        sunMesh.add(sunGlow);
+
+        // Planets container and tracking entities
+        const planetEntities = [];
+
+        // Orbit ring lines on the spacetime mesh
+        function createOrbitRing(radius) {
+            const pts = [];
+            const segments = 120;
+            for(let i = 0; i <= segments; i++) {
+                const theta = (i / segments) * Math.PI * 2;
+                pts.push(new THREE.Vector3(Math.cos(theta) * radius, 0.05, Math.sin(theta) * radius));
+            }
+            const ringGeo = new THREE.BufferGeometry().setFromPoints(pts);
+            const ringMat = new THREE.LineBasicMaterial({
+                color: 0x475569,
+                transparent: true,
+                opacity: 0.28
+            });
+            return new THREE.Line(ringGeo, ringMat);
+        }
+
+        PLANET_DATA.forEach((p) => {
+            // Orbit guide ring
+            const orbitRing = createOrbitRing(p.dist);
+            scene.add(orbitRing);
+
+            // Material
+            let planetMat;
+            if (p.striped) {
+                const tex = createStripedTexture(p.color, '#b45309');
+                planetMat = new THREE.MeshStandardMaterial({
+                    map: tex,
+                    roughness: 0.6,
+                    metalness: 0.1
+                });
+            } else {
+                planetMat = new THREE.MeshStandardMaterial({
+                    color: new THREE.Color(p.color),
+                    roughness: 0.5,
+                    metalness: 0.2
+                });
+            }
+
+            // Mesh
+            const pGeo = new THREE.SphereGeometry(p.radius, 32, 32);
+            const pMesh = new THREE.Mesh(pGeo, planetMat);
+            pMesh.castShadow = true;
+            pMesh.receiveShadow = true;
+            scene.add(pMesh);
+
+            // Saturn / Uranus Rings
+            let ringsMesh = null;
+            if (p.hasRings) {
+                const inner = p.radius * 1.4;
+                const outer = p.radius * 2.3;
+                const ringGeo = new THREE.RingGeometry(inner, outer, 48);
+                ringGeo.rotateX(Math.PI / 2.3);
+                const ringMat = new THREE.MeshStandardMaterial({
+                    color: p.id === 'saturn' ? 0xe2d4a8 : 0x7dd3fc,
+                    side: THREE.DoubleSide,
+                    transparent: true,
+                    opacity: 0.8,
+                    roughness: 0.4
+                });
+                ringsMesh = new THREE.Mesh(ringGeo, ringMat);
+                ringsMesh.castShadow = true;
+                pMesh.add(ringsMesh);
+            }
+
+            // Moons setup (e.g. Earth's Moon, Jupiter Galileans, etc)
+            const moonMeshes = [];
+            if (p.moons > 0) {
+                const count = p.moons;
+                for(let m = 0; m < count; m++) {
+                    const mRad = p.radius * 0.18;
+                    const mGeo = new THREE.SphereGeometry(mRad, 16, 16);
+                    const mMat = new THREE.MeshStandardMaterial({
+                        color: 0xd1d5db,
+                        roughness: 0.7
+                    });
+                    const mMesh = new THREE.Mesh(mGeo, mMat);
+                    mMesh.castShadow = true;
+                    scene.add(mMesh);
+                    moonMeshes.push({
+                        mesh: mMesh,
+                        distance: p.radius + 1.2 + (m * 1.1),
+                        speed: 15 / (m + 1),
+                        angleOffset: m * (Math.PI / 2)
+                    });
+                }
+            }
+
+            // Store planet entry
+            planetEntities.push({
+                data: p,
+                mesh: pMesh,
+                currentPos: new THREE.Vector3(p.dist, 0, 0),
+                currentDepth: p.funnelDepth,
+                moonMeshes: moonMeshes
+            });
+        });
+
+        // -------------------------------------------------------------
+        // GRAVITATIONAL CURVATURE FORMULA (Deforming Spacetime Sheet)
+        // -------------------------------------------------------------
+        // Calculates Y deflection at any (x, z) on sheet:
+        // Well(r) = - Depth / (1 + (r / Width)^2)
+        function getSheetY(x, z) {
+            let totalDeflection = 0;
+
+            // 1. Solar Funnel (Deep central gravitational well)
+            const rSun2 = x * x + z * z;
+            const sunWidth = 9.5;
+            const sunDepth = 12.0;
+            totalDeflection -= sunDepth / (1.0 + (rSun2 / (sunWidth * sunWidth)));
+
+            // 2. Planets Funnels
+            for (let i = 0; i < planetEntities.length; i++) {
+                const ent = planetEntities[i];
+                const dx = x - ent.currentPos.x;
+                const dz = z - ent.currentPos.z;
+                const r2 = dx * dx + dz * dz;
+
+                const pW = ent.data.funnelWidth;
+                const pD = ent.data.funnelDepth;
+                
+                // Cauchy-Lorentzian gravity well profile
+                totalDeflection -= pD / (1.0 + (r2 / (pW * pW)));
+
+                // Secondary subtle moon wells inside planet funnel
+                if (ent.moonMeshes.length > 0) {
+                    for(let m = 0; m < ent.moonMeshes.length; m++) {
+                        const mPos = ent.moonMeshes[m].mesh.position;
+                        const mdx = x - mPos.x;
+                        const mdz = z - mPos.z;
+                        const mr2 = mdx * mdx + mdz * mdz;
+                        totalDeflection -= 0.65 / (1.0 + (mr2 / 1.4));
+                    }
+                }
+            }
+
+            return totalDeflection;
+        }
+
+        // Recompute vertex Y heights and recalculate vertex normals for realistic lighting & shadows
+        function updateSpacetimeMeshDeformation() {
+            const pos = sheetGeo.attributes.position;
+            for (let i = 0; i < vertexCount; i++) {
+                const vx = baseCoords[i * 3];
+                const vz = baseCoords[i * 3 + 2];
+                const vy = getSheetY(vx, vz);
+                pos.setY(i, vy);
+            }
+            pos.needsUpdate = true;
+            sheetGeo.computeVertexNormals();
+        }
+
+        // -------------------------------------------------------------
+        // SIMULATION TIME STEPPING & PLANET POSITIONS
+        // -------------------------------------------------------------
+        function updatePlanetsPosition(day) {
+            // Update Sun vertical placement exactly into well center
+            const sunWellY = getSheetY(0, 0);
+            sunMesh.position.y = sunWellY + 4.2;
+
+            for (let i = 0; i < planetEntities.length; i++) {
+                const ent = planetEntities[i];
+                const p = ent.data;
+
+                // Orbit angle around Sun
+                // Standard starting angle distribution so planets don't line up immediately
+                const initialPhase = (i * 1.15);
+                const orbitalAngle = (day / p.daysPerYear) * Math.PI * 2 + initialPhase;
+
+                // Position on XZ plane
+                const px = Math.cos(orbitalAngle) * p.dist;
+                const pz = Math.sin(orbitalAngle) * p.dist;
+
+                // Store current coordinates
+                ent.currentPos.set(px, 0, pz);
+
+                // Sample gravitational depression at planet center
+                const wellY = getSheetY(px, pz);
+                
+                // Position planet resting inside funnel
+                // Sun's gravitational depression is already lowering the base sheet
+                ent.mesh.position.set(px, wellY + (p.radius * 0.72), pz);
+
+                // Planet axial rotation
+                ent.mesh.rotation.y = day * 0.15;
+
+                // Update Moons in orbit around the planet within the well
+                if (ent.moonMeshes.length > 0) {
+                    for(let m = 0; m < ent.moonMeshes.length; m++) {
+                        const moonObj = ent.moonMeshes[m];
+                        const moonAngle = (day / moonObj.speed) * Math.PI * 2 + moonObj.angleOffset;
+                        const mx = px + Math.cos(moonAngle) * moonObj.distance;
+                        const mz = pz + Math.sin(moonAngle) * moonObj.distance;
+                        const moonWellY = getSheetY(mx, mz);
+                        moonObj.mesh.position.set(mx, moonWellY + 0.45, mz);
+                    }
+                }
+
+                // Update right panel orbit counters
+                const orbitsCompleted = (day / p.daysPerYear).toFixed(2);
+                const orbitBadge = document.getElementById(`orbitCount-${p.id}`);
+                if (orbitBadge) {
+                    orbitBadge.textContent = `${orbitsCompleted} orbits`;
+                }
+            }
+
+            // Deform sheet to fit updated masses
+            updateSpacetimeMeshDeformation();
+
+            // Update UI Counters
+            displayEarthDays.textContent = `Day ${Math.floor(day).toLocaleString()}`;
+            displayEarthYears.textContent = `(${(day / 365.25).toFixed(2)} Earth Years)`;
+        }
+
+        // Camera focus helper
+        function focusCameraOnPlanet(planetId) {
+            const targetPlanet = planetEntities.find(p => p.data.id === planetId);
+            if (!targetPlanet) return;
+            const pos = targetPlanet.mesh.position;
+            
+            // Smoothly look at planet
+            const dist = targetPlanet.data.radius * 6 + 12;
+            camera.position.set(pos.x + dist * 0.8, pos.y + dist * 0.7, pos.z + dist * 0.8);
+            controls.target.set(pos.x, pos.y, pos.z);
+        }
+
+        // -------------------------------------------------------------
+        // INTERACTIVE TIME SCRUBBING & CONTROLS
+        // -------------------------------------------------------------
+        timeSlider.addEventListener('input', (e) => {
+            currentDay = parseFloat(e.target.value);
+            updatePlanetsPosition(currentDay);
+        });
+
+        btnPlayPause.addEventListener('click', () => {
+            isPlaying = !isPlaying;
+            playIcon.className = isPlaying ? "fa-solid fa-pause" : "fa-solid fa-play";
+        });
+
+        btnStepBack.addEventListener('click', () => {
+            currentDay = Math.max(0, currentDay - 30);
+            timeSlider.value = currentDay;
+            updatePlanetsPosition(currentDay);
+        });
+
+        btnStepForward.addEventListener('click', () => {
+            currentDay = Math.min(60000, currentDay + 30);
+            timeSlider.value = currentDay;
+            updatePlanetsPosition(currentDay);
+        });
+
+        // Speed warp buttons
+        const speedButtons = [
+            { id: 'btnSpeed05', rate: 0.5 },
+            { id: 'btnSpeed1', rate: 1.0 },
+            { id: 'btnSpeed5', rate: 5.0 },
+            { id: 'btnSpeed20', rate: 20.0 }
+        ];
+
+        speedButtons.forEach(sb => {
+            const btn = document.getElementById(sb.id);
+            btn.addEventListener('click', () => {
+                warpMultiplier = sb.rate;
+                speedButtons.forEach(o => {
+                    const el = document.getElementById(o.id);
+                    el.className = "speed-btn px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300";
+                });
+                btn.className = "speed-btn px-2 py-0.5 rounded text-[11px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold";
+            });
+        });
+
+        // Camera Preset Buttons
+        document.getElementById('btnViewAngled').addEventListener('click', () => {
+            camera.position.set(20, 115, 145);
+            controls.target.set(0, -6, 0);
+        });
+
+        document.getElementById('btnViewTop').addEventListener('click', () => {
+            camera.position.set(0, 190, 0.1);
+            controls.target.set(0, -5, 0);
+        });
+
+        document.getElementById('btnResetCam').addEventListener('click', () => {
+            camera.position.set(0, 110, 140);
+            controls.target.set(0, -6, 0);
+        });
+
+        // Toggle Spacetime Wireframe
+        document.getElementById('btnToggleMesh').addEventListener('click', function() {
+            meshWireframe = !meshWireframe;
+            wireframeMesh.visible = meshWireframe;
+            this.classList.toggle('bg-cyan-900/40', meshWireframe);
+            this.classList.toggle('text-cyan-300', meshWireframe);
+        });
+
+        // -------------------------------------------------------------
+        // RESIZE & ANIMATION LOOP
+        // -------------------------------------------------------------
+        function resize() {
+            const container = canvas.parentElement;
+            const w = container.clientWidth;
+            const h = container.clientHeight;
+            if (canvas.width !== w || canvas.height !== h) {
+                renderer.setSize(w, h, false);
+                camera.aspect = w / h;
+                camera.updateProjectionMatrix();
+            }
+        }
+
+        window.addEventListener('resize', resize);
+
+        // Initial setup
+        resize();
+        updatePlanetsPosition(0);
+
+        // Main animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (isPlaying) {
+                // Advance days based on current warp speed
+                currentDay += baseDayRate * warpMultiplier;
+                
+                // Wrap around max slider length
+                if (currentDay > 60000) {
+                    currentDay = 0;
+                }
+
+                timeSlider.value = currentDay;
+                updatePlanetsPosition(currentDay);
+            }
+
+            // Slight sun rotation
+            sunMesh.rotation.y += 0.003;
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // Start loop once window is ready
+        window.onload = function () {
+            resize();
+            animate();
+        };
+    </script>
+</body>
+</html>
